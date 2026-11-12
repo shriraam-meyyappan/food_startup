@@ -1,0 +1,43 @@
+# Dependencies and generated outputs
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+services/api/generated/
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+key.properties
+
+# Flutter / Dart / Android
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/captures/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# Local tooling
+.idea/
+.vscode/
+*.iml
+*.log
+.DS_Store
+Thumbs.db
