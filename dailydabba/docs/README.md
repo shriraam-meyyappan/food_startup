@@ -1,5 +1,9 @@
 # Project documentation
 
+Current Python backend documentation is in [database setup](../backend/docs/database-setup.md)
+and [progress](../backend/PROGRESS.md). The original notes below describe the
+legacy NestJS/Prisma scaffold retained in services/api.
+
 This repository currently contains development scaffolding only. There are no
 business models, authentication flows, payments, ordering, or subscription logic.
 

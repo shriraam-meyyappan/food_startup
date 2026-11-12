@@ -1,5 +1,12 @@
 # DailyDabba
 
+**Backend direction updated:** the active Python/FastAPI backend is in
+[`backend/`](backend/README.md), with Phases 1–3 confirmed and Phase 4 PostgreSQL integration verified.
+See [database setup](backend/docs/database-setup.md); Phase 5 awaits confirmation.
+The NestJS/Prisma starter in `services/api` is retained as historical work.
+The older NestJS backend instructions below apply only to that starter.
+
+
 Initial development monorepo. The app entry points are deliberately blank; no
 customer-facing UI or business logic has been implemented. Each application owns
 its dependencies and can run independently. No global Next.js or NestJS CLI is needed.
