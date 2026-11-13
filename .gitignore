@@ -1,0 +1,5 @@
+# Repository-wide dependency and secret exclusions
+node_modules/
+.env
+.env.*
+!.env.example

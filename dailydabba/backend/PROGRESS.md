@@ -1,113 +1,141 @@
 # DailyDabba backend progress
 
-Updated: 12 November 2026 (Asia/Kolkata).
+Updated: 13 November 2026 (Asia/Kolkata).
 
-## Confirmation history
-- Active backend: dailydabba/backend (Python/FastAPI).
-- User confirmed Phases 1 and 2 via health and explicitly approved continuation.
-- User confirmed Phase 3 with 14 passing tests and one known warning, then approved Phase 4.
-- Phase 4 is now implemented and verified; awaiting explicit confirmation.
-- No Phase 5–15 feature work has started. Both frontend applications are untouched.
-- Historical services/api (NestJS/Prisma) remains preserved and is not the active backend.
+## Current authorization and state
+- User could not check Phase 4 and explicitly asked the agent to verify/repair it,
+  then execute Phase 5 and provide a detailed completed-work/remaining plan.
+- Phase 4 was restored and reverified before Phase 5: all original 32 tests passed.
+- Phase 5 is implemented and verified: 80 tests pass with one known library warning.
+- Phase 6 has NOT started; wait for explicit confirmation.
+- Active backend: dailydabba/backend. Legacy services/api is preserved historical work.
+- Both frontend apps remain untouched; no layouts/screens/branding were added.
+- Detailed handoff: docs/implementation-summary.md. Auth walkthrough: docs/authentication.md.
 
-## Completed phases
-1. Python environment, FastAPI, configuration, UTC logging, health and tests.
-2. Backend boundaries, central version router and architecture guide.
-3. 23 SQLAlchemy models, database design/ER diagram, exact money/timestamps,
-   constraints, offline DDL exporter, SQL examples and model checks.
-4. PostgreSQL/Psycopg connection, scoped sessions, migration credentials, Alembic
-   initial migration/runtime grants, readiness, real DB tests and local/team setup.
-
-## Current local database
-- PostgreSQL 17.12 installed from official EDB binaries, not a Windows service.
+## Current running services
+- PostgreSQL 17.12: 127.0.0.1:55432, SCRAM authentication, UTC sessions.
 - Binaries: C:/Users/rmshr/AppData/Local/DailyDabba/postgresql-17/pgsql/bin.
-- Data: C:/Users/rmshr/AppData/Local/DailyDabba/pgdata17 (outside repo and OneDrive).
-- Currently running on 127.0.0.1:55432; SCRAM authentication; UTC sessions.
-- Backend .env has generated runtime/migration/test URLs, all ignored by Git.
-- Local bootstrap password: ignored backend/.local/postgres-admin.password.
-- Development database: dailydabba, revision 0001_initial, 23 application tables
-  plus alembic_version. No customer/business records were seeded.
-- Dedicated disposable database: dailydabba_test. Integration tests return it to
-  base; they never reset development data. PostgreSQL does not auto-start on reboot.
-- Docker is absent. Updated Compose/bootstrap scripts are supplied and shell syntax
-  checked; actual container launch is unverified. Use the verified native setup here.
+- Data: C:/Users/rmshr/AppData/Local/DailyDabba/pgdata17 (outside repo/OneDrive).
+- Startup log now C:/Users/rmshr/AppData/Local/DailyDabba/postgresql.log, OUTSIDE data.
+- API was started as a managed hidden local process on http://127.0.0.1:8000.
+- Swagger: /docs. Ignored .local/api.process.json records PID/start identity/log paths.
+- scripts/start-api.ps1 and stop-api.ps1 safely manage only this workspace's API.
+- Neither service auto-starts after reboot. Managed API has no automatic reload.
+- Local secrets stay in ignored backend/.env and .local/postgres-admin.password.
+- No real JWT key, password or token is printed in source/documentation.
 
-## Phase 4 files
-Created:
-- app/db/database.py, check.py, provision.py: engine/sessions, safe checks, explicit admin provisioning.
-- app/api/v1/readiness.py: sanitized readiness HTTP endpoint.
-- alembic.ini, alembic/env.py, alembic/script.py.mako, and the frozen
-  alembic/versions/0001_initial_initial_database_schema.py migration.
-- app/tests/conftest.py, test_database_unit.py, test_database_integration.py.
-- scripts/start-postgres.ps1, scripts/stop-postgres.ps1.
-- docs/database-setup.md with exact setup/run/migration/test commands and safeguards.
-- infrastructure/docker/initdb/01_roles.sh and .gitattributes for Linux line endings.
-Modified:
-- Settings, lifespan, version router, health schemas, database package description.
-- requirements.in/requirements.txt: Alembic 1.20.1, Psycopg 3.3.9 binary package and dependencies.
-- Safe backend/root .env examples, backend ignore rules, Compose role/bootstrap setup.
-- READMEs, architecture/database guides and this progress summary.
-- Local .env gained real URLs without printing passwords or overwriting prior settings.
+## Phase 4 recheck/repair for this request
+- PostgreSQL was stopped. Startup recovered from an earlier interruption.
+- Windows reported a sharing conflict with the old log in the data directory,
+  delaying recovery. Recovery completed; then a clean restart used the external log.
+- Start helper now allows 120 seconds for recovery. No data directory was reset.
+- No API listener existed on port 8000. The verified Phase 5 API is now running there.
+- Database readiness and live HTTP endpoints were verified.
+- Original schema still has 23 application tables plus alembic_version at 0001_initial.
+- No schema drift; no applied migration was edited, and Phase 5 needed no new migration.
 
-## Current APIs
-- GET /api/v1/health: HTTP 200 {"status":"ok"}; process liveness only.
-- GET /api/v1/ready: HTTP 200 {"status":"ready"}; queries PostgreSQL, verifies UTC
-  and current migration head. Missing/unavailable/outdated DB returns sanitized 503.
-- /docs and /openapi.json include both operations.
-- No registration/login or business API exists yet. The user must restart an older
-  API instance to load new settings; the verification API process was stopped afterward.
+## Completed history
+0. Initial monorepo: independent Next.js/Flutter/NestJS starters, infrastructure,
+   examples/ignore rules/docs and commit ae4cd0e. Later backend direction changed
+   explicitly to Python; NestJS remains historical scaffolding.
+1. Python 3.13.5 venv, FastAPI, configuration, UTC logging, health, docs and six tests.
+2. Central version router, architecture responsibilities and package boundaries.
+3. 23 SQLAlchemy models, ER diagram, exact money/time/ownership constraints,
+   credit ledger design, offline SQL compiler, SQL examples and model tests.
+4. Psycopg, native PostgreSQL, scoped sessions, separate migration/runtime roles,
+   Alembic initial migration, readiness, permissions and real DB integration tests.
+5. Registration/login, Argon2, signed JWTs, current-user/self-profile APIs,
+   role checks, staff-account command, safe errors, auth throttle and extensive tests.
 
-## Sessions and permissions
-- Engine is lazy, uses pre-ping, a bounded pool, timeout, UTC and hidden SQL parameters.
-- Each request gets a separate session; failures/uncommitted work roll back on close.
-- Future services explicitly own transaction commits. No startup create_all/migrations.
-- Migration role owns objects; runtime role is not superuser/schema owner.
-- Runtime cannot DDL or alter Alembic's revision record. It can read the version for readiness.
-- Runtime has no update/delete on ledger, audit, subscription-event or order-item history.
-- Order snapshots/amounts are protected by column-level updates (status only).
-- Other financial records have narrow lifecycle/balance column updates; no deletes.
-- Owners/superusers can still modify history. These controls do not implement row-level
-  authorization, full order collection immutability, ledger reconciliation, credit
-  concurrency rules, state transitions or refund policies. Those remain feature work.
+## Phase 5 API contracts
+- GET /api/v1/health -> {"status":"ok"}.
+- GET /api/v1/ready -> {"status":"ready"}; unavailable/unmigrated DB -> sanitized 503.
+- POST /api/v1/auth/register -> 201 customer + profile; duplicate email 409.
+- POST /api/v1/auth/login -> 200 bearer access token, expires_in 900 by default.
+- GET /api/v1/users/me -> authenticated current account/profile only.
+- PATCH /api/v1/users/me/profile -> own full_name/phone only; phone null clears it.
+- GET /api/v1/admin/access-check -> admins 200, other authenticated roles 403.
+- GET /api/v1/kitchen/access-check -> admin/kitchen staff 200, customers 403.
+- Anonymous/invalid/expired token gets 401 with WWW-Authenticate: Bearer.
+- Invalid inputs 422, throttle 429/Retry-After, unavailable auth/DB 503.
+- API responses are no-store. These are JSON backend APIs, not dashboard operations.
 
-## Verified in Phase 4
-- Dependency consistency passed.
-- 32 tests passed with --run-db (18 ordinary checks and 14 PostgreSQL integration cases).
-- Ordinary pytest intentionally skips integration: expected 18 passed, 14 skipped.
-- Upgrade/downgrade/upgrade on dedicated test DB; final test DB returned to base.
-- Development migration applied; Alembic check found no schema drift.
-- Real CHECK/unique/composite foreign-key enforcement, exact/generated prices,
-  snapshot persistence, owned addresses, default uniqueness, nonnegative credits,
-  duplicate grants/order request keys/provider IDs, and invalid refunds tested.
-- Runtime DDL/history mutation/version mutation denials verified; failed HTTP request rollback tested.
-- Live health, readiness, Swagger HTML and OpenAPI each returned HTTP 200.
-- Local provisioning was safely rerun without password rotation or ownership takeover.
-- Runtime CLI check returned ready, UTC, 0001_initial.
-- One existing upstream Starlette/AnyIO deprecated-alias warning remains, not a failure.
-- Frontend apps and legacy NestJS starter unchanged. Credentials, data, environment,
-  virtual environment and caches are not staged/tracked. Work remains uncommitted.
+## Security and transaction decisions
+- Public registration always assigns customer; unknown/privileged fields rejected.
+- Emails are lowercase and unique. ON CONFLICT handles simultaneous registration.
+- Argon2id hashes only; successful login upgrades older hash parameters as needed.
+- Key is cryptographically generated into ignored .env; fixed HS256 allowlist.
+- Verify exp/iat/nbf/iss/aud/sub/jti/token_type and UUID subjects/JWT IDs.
+- JWT carries identity, NOT a trusted role. Query current DB role/status each request.
+- Disabled/deactivated users cannot log in or reuse otherwise valid access tokens.
+- Staff CLI prompts twice and requires trusted migration credentials. Existing
+  accounts are never silently promoted/replaced. No default admin was created.
+- Registration/profile/staff changes include minimal audit entries in the same commit.
+- Audit details do not contain passwords, tokens or private profile values.
+- Repositories do not commit. Services coordinate transactions; request sessions
+  roll back unfinished/failed work. SQL parameters and validation inputs are hidden.
+- Request validation responses never include submitted input/context values.
+- Auth limits are bounded/thread-safe/process-local, default 10/minute per endpoint
+  and ASGI client address. Local server disables proxy header interpretation.
 
-## Team confirmation checklist
-- [ ] Read docs/database-setup.md and understand native versus Docker setup.
-- [ ] Restart the API, then GET /api/v1/ready; expect {"status":"ready"}.
-- [ ] Run python -m app.db.check with the virtual environment; expect UTC and 0001_initial.
-- [ ] Run Pytest with --run-db; expect 32 passing tests and the known warning.
-- [ ] Keep useful data out of dailydabba_test; tests intentionally reset its schema.
-- [ ] Explicitly confirm Phase 4 before Phase 5.
+## Phase 5 files created
+- core/security.py, core/errors.py, core/rate_limit.py.
+- schemas/auth.py; repositories/users.py.
+- services/auth.py, services/profiles.py.
+- api/dependencies.py; api/v1/auth.py, users.py, access.py.
+- cli/__init__.py, cli/create_staff.py.
+- tests/test_security.py, tests/test_auth_integration.py.
+- scripts/start-api.ps1, scripts/stop-api.ps1.
+- docs/authentication.md, docs/implementation-summary.md.
 
-## Unresolved future business policies
-One role/user and one dated meal menu/order are initial design choices. Credit-to-
-meal mapping, combined accounts, partial restores, skip deadlines, pause extensions,
-fulfillment deduction timing, tax/fee values and refund rules remain unapproved.
-Do not invent those policies during authentication or database work.
+Modified: settings/main/router/package descriptions, requirements/example environment,
+shared guarded DB test fixtures, PostgreSQL start helper, READMEs, architecture/setup
+and progress docs. The source appendix in README includes every current source file.
+New direct deps: pwdlib[argon2] 0.3.1, PyJWT 2.15.1, email-validator 2.3.0 with pinned
+transitives. No unrelated libraries or schema/business feature was added.
 
-## Next phase (not started)
-Phase 5: registration, login, Argon2 hashing, JWT access/verification, current-user
-lookup, profile retrieval/updates and customer/admin/kitchen role authorization.
-Keep this backend-only and stop for confirmation after the phase.
+## Verified results
+- Phase 4 baseline: 32 passed before Phase 5.
+- Full current suite --run-db: 80 passed, one upstream Starlette/AnyIO deprecation warning.
+- Ordinary suite without --run-db: 41 passed, 39 intentionally skipped, same warning.
+- Tests include actual runtime-role HTTP flows, all roles, deactivation, live role
+  changes, unknown-user tokens, strict JWT cases, password hashing/rehashing,
+  rate limits, rollback, concurrent signup, privacy and trusted staff CLI behavior.
+- Database/migration checks: ready, UTC, 0001_initial; no drift; dependencies consistent.
+- Development was not reset or seeded with demo/admin/test accounts by this work.
+- All destructive DB test setup checks ACTUAL current_database()==dailydabba_test;
+  refuses development/unknown tables; shared suite cleans up and downgrades test DB.
+- Phases 1–4 are saved in commit 026128c (bckend base created), after initial
+  scaffold ae4cd0e. Current Phase 5 changes remain uncommitted; no new commit was
+  made in this turn. Credentials/runtime state/logs/dependencies/caches remain
+  ignored or outside Git. Git identity was not changed.
+- Docker is absent; its previously supplied path is not container-launch verified.
 
-## Continue in another chat
-Read this file, README.md and docs/database-setup.md first; then architecture/design
-and actual source/migrations. Inspect Git status and preserve all existing work.
-Do not edit already-applied migration 0001_initial, delete local data, reset the
-user's server or advance phases without explicit approval. No frontend changes.
+## Limits and decisions still pending
+- Foundation is local, not production deployment. No refresh/revocation/logout
+  endpoint, password-reset/change, email verification or MFA workflow yet.
+- Role access checks are demonstrations; no operational admin/kitchen APIs yet.
+- Process-local auth throttle is not distributed abuse protection. Review trusted
+  proxies, shared limits, TLS, CORS and other production controls before exposure.
+- Registration duplicate status reveals account existence; production policy needs review.
+- Future order/credit/refund business guarantees are not implied by existing tables.
+- Tax/delivery charges, service area, cancellation/refund rules, credit conversion,
+  multi-account/partial restores, skip deadlines, pause extensions and deduction
+  timing remain unapproved. Do not invent them in the address phase.
+
+## Confirmation checklist and next phase
+- [ ] Open http://127.0.0.1:8000/docs; health and readiness should work now.
+- [ ] Register your own customer, login, Authorize with its token, retrieve/update /me.
+- [ ] Confirm admin/kitchen access checks return 403 for that customer.
+- [ ] Review implementation-summary.md for the full completed-work and remaining plan.
+- [ ] Run --run-db if desired; expect 80 passed and the one known warning.
+- [ ] Explicitly confirm Phase 5 before Phase 6.
+
+Next (NOT STARTED): Phase 6 own-address create/list/update/soft-delete/default APIs,
+with ownership checks and tests. Continue one phase at a time; no frontend work.
+Do not edit already-applied 0001_initial, discard existing uncommitted work, reset
+local development data or stop unrelated user processes when continuing.
+
+Repository root package.json/package-lock.json and Swagger JavaScript dependencies
+were observed and preserved as separate user work. They are not used by FastAPI.
+Added only a root .gitignore to exclude node_modules and local environment secrets.

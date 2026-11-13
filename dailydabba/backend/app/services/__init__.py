@@ -1,5 +1,5 @@
-"""Future business use cases and transaction coordination.
+"""Business use cases and transaction coordination.
 
-Services will apply business rules and call repositories. They must not depend
-on FastAPI routes or HTTP request and response objects.
+Authentication and profile services own complete commits and call repositories.
+Services do not depend on FastAPI route or HTTP request/response objects.
 """

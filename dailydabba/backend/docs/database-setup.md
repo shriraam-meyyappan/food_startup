@@ -1,9 +1,14 @@
-# Phase 4: PostgreSQL, sessions and Alembic
+# PostgreSQL, sessions and Alembic (updated through Phase 5)
+
+Phase 4 was rechecked and restored on 13 November 2026 before Phase 5. The API
+now also provides authentication; see [authentication setup](authentication.md)
+for JWT key generation before using a fresh .env example. The native database is
+verified and the initial migration remains unchanged.
 
 Phase 3 is confirmed. Phase 4 is implemented and verified against PostgreSQL
 17.12. The development database now has 23 application tables plus Alembic's
 version table at revision `0001_initial`. There is no customer/business data.
-No authentication, payment API or other later-phase feature has been implemented.
+Phase 5 authentication is now implemented. Payment and other business APIs remain future work.
 
 ## This machine: ready to use
 
@@ -56,7 +61,7 @@ After a reboot, start the installed database directly (no script policy change):
 ```powershell
 $pgBin = Join-Path $env:LOCALAPPDATA 'DailyDabba/postgresql-17/pgsql/bin'
 $pgData = Join-Path $env:LOCALAPPDATA 'DailyDabba/pgdata17'
-& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData -l (Join-Path $pgData 'server.log') -w start
+& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData -l (Join-Path $env:LOCALAPPDATA 'DailyDabba/postgresql.log') -t 120 -w start
 ```
 
 Stop it when no developer needs it:
@@ -225,7 +230,8 @@ consistent; they are not an access-control system for reading customer records.
 .\.venv\Scripts\python.exe -m pytest -q --run-db
 ```
 
-Expected: ordinary run `18 passed, 14 skipped`; with `--run-db`, `32 passed`.
+Current expected results: ordinary run `41 passed, 39 skipped`; with `--run-db`, `80 passed`.
+The original Phase 4-only baseline was 32 passing tests and was rechecked first.
 One existing upstream Starlette/AnyIO deprecated-alias warning remains.
 `TEST_DATABASE_URL` must be configured. Tests refuse any database name except
 `dailydabba_test`, refuse the development database, and refuse unknown tables.
@@ -242,14 +248,26 @@ policies and concurrency services have not been implemented or certified.
 ## Verified outcome and next step
 
 The native PostgreSQL database was migrated and checked using limited runtime
-credentials. The full 32-test run passed, and runtime readiness reports UTC at
+credentials. The original Phase 4 32-test run passed; the current full suite has 80 passing
+tests, and runtime readiness reports UTC at
 revision `0001_initial`. The test database was returned to base; the development
 database remains migrated and PostgreSQL remains running locally.
 
-Review this guide, run the readiness/test commands, and explicitly confirm Phase 4
-before Phase 5 (registration, login, Argon2, JWT and role-based authorization).
+Review this guide, run the readiness/test commands, and review Phase 5 authentication. Phase 6 address management awaits explicit
+confirmation after the current authentication flow works for the team.
 Both frontend apps remain unchanged. Current source work remains uncommitted.
 
 References: [SQLAlchemy PostgreSQL](https://docs.sqlalchemy.org/en/20/dialects/postgresql.html),
 [Alembic tutorial](https://alembic.sqlalchemy.org/en/latest/tutorial.html),
 [official Windows binaries](https://www.enterprisedb.com/download-postgresql-binaries).
+
+## Recovery note from 13 November 2026
+
+Native PostgreSQL was stopped; its startup log showed recovery from an earlier interruption. Startup recovery initially reported
+a sharing conflict for the old server.log inside the data directory. The database
+recovered, passed its checks, and was cleanly restarted with startup logging at
+`C:/Users/rmshr/AppData/Local/DailyDabba/postgresql.log`, outside the data folder.
+The start helper now allows 120 seconds for recovery. No data directory was removed
+or reinitialized. If recovery is needed again, inspect the startup log and wait;
+do not remove postmaster.pid or reset data as a first troubleshooting step.
+The API also needs to be started after a machine reboot; see authentication.md.

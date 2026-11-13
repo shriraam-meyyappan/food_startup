@@ -4,11 +4,13 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
+from app.core.errors import install_error_handlers
+from app.core.rate_limit import AuthRateLimiter
 from app.db.database import Database
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
         debug=False,
     )
+    application.state.settings = settings
+    application.state.auth_limiter = AuthRateLimiter(
+        settings.auth_rate_limit_per_minute
+    )
+    install_error_handlers(application)
+
+    @application.middleware("http")
+    async def prevent_api_caching(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     application.include_router(api_router)
     return application
 

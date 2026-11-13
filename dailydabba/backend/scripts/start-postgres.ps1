@@ -7,5 +7,5 @@ if (-not (Test-Path (Join-Path $pgBin 'pg_ctl.exe'))) {
 }
 & (Join-Path $pgBin 'pg_ctl.exe') -D $pgData status
 if ($LASTEXITCODE -eq 0) { exit 0 }
-& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData -l (Join-Path $pgData 'server.log') -w start
+& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData -l (Join-Path $env:LOCALAPPDATA 'DailyDabba/postgresql.log') -t 120 -w start
 exit $LASTEXITCODE

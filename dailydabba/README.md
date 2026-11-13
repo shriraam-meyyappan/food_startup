@@ -1,8 +1,9 @@
 # DailyDabba
 
 **Backend direction updated:** the active Python/FastAPI backend is in
-[`backend/`](backend/README.md), with Phases 1–3 confirmed and Phase 4 PostgreSQL integration verified.
-See [database setup](backend/docs/database-setup.md); Phase 5 awaits confirmation.
+[`backend/`](backend/README.md), with Phase 4 rechecked and Phase 5 authentication/profile/role access verified.
+See [authentication](backend/docs/authentication.md) and the detailed
+[completed-work and remaining plan](backend/docs/implementation-summary.md). Phase 6 awaits confirmation.
 The NestJS/Prisma starter in `services/api` is retained as historical work.
 The older NestJS backend instructions below apply only to that starter.
 

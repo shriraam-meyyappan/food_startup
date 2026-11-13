@@ -1,12 +1,13 @@
-# Backend architecture (updated through Phase 4)
+# Backend architecture (updated through Phase 5)
 
 Phases 2 and 3 were confirmed by the team. Phase 4 now supplies PostgreSQL
 engine/session dependencies, database readiness, Alembic migrations and restricted
-runtime permissions. See [database setup](database-setup.md) and
+runtime permissions. Phase 5 implements authentication, self-profiles and live
+role authorization; see [authentication](authentication.md). See [database setup](database-setup.md) and
 [database design](database-design.md) for the current verified state.
 
 The active backend is `dailydabba/backend`. It is a modular monolith: one Python
-application, one deployment unit, and (in a later phase) one PostgreSQL database.
+application, one deployment unit, and one PostgreSQL business database per environment.
 Each folder has a narrow role so four developers can work on separate features
 without placing everything in a single file. SQLAlchemy 2.0, Psycopg 3 and Alembic provide persistence and migrations.
 
@@ -47,7 +48,8 @@ backend/
   PROGRESS.md                Phase history and next-chat handoff
 ```
 
-Services and repositories remain documentation-only package boundaries. Models
+Services now implement authentication and profile updates; repositories provide
+user lookup/insert functions without independent commits. Models
 now describe 23 tables and db/base.py supplies metadata. Imports do not create tables or open connections. Lifespan configures a lazy
 engine; request dependencies open scoped sessions. Business operations remain later.
 
@@ -77,11 +79,12 @@ or exposes. `HealthResponse` currently restricts status to the literal `ok`.
 `app/models` holds SQLAlchemy classes describing database records and their
 relationships. Database models and API schemas have different jobs. For example,
 a future user database record may contain a password hash, but its public response
-schema must never expose that field. User storage is now modeled, but no registration or authentication service exists.
+schema must never expose that field. User storage is now modeled, but registration/login and self-profile services are now implemented in Phase 5.
 
 ### Services
 
-`app/services` will coordinate business use cases and rules. For example, a future
+`app/services` coordinates business use cases and rules. Auth/profile services
+now commit their transactions; commerce services remain future phases. For example, a future
 order service would validate availability and calculate a total using server-side
 prices. This is an illustration of responsibility, not an order design or API.
 Services should take explicit inputs rather than HTTP request objects.
@@ -92,8 +95,8 @@ function.
 
 ### Repositories
 
-`app/repositories` will contain SQLAlchemy queries and persistence operations for
-real features. Repositories receive a session from the caller; they do not create
+`app/repositories/users.py` now provides user queries and conflict-safe inserts.
+Other feature-specific persistence functions will be added as those phases proceed. Repositories receive a session from the caller; they do not create
 global sessions, return HTTP responses, or decide business policies. Do not wrap
 every SQLAlchemy method in an abstract generic repository. Add a small concrete
 query function when a feature needs one.
@@ -121,8 +124,9 @@ and validated there when a feature actually needs them. Secrets belong in local
 environment files or deployment secret storage, never in source or API responses.
 `app/core/logging.py` defines UTC console logging.
 
-Add `core/security.py` when authentication is implemented in Phase 5. Creating an
-empty security helper now could imply protection that does not exist. Similarly,
+`core/security.py` now provides Argon2 hashing and strict JWT verification.
+Role dependencies query current database status/permissions on each request.
+See authentication.md for current guarantees and limits. Similarly,
 add `utils/` only for a genuinely shared, narrowly named helper; business rules
 belong with their service rather than in a miscellaneous utility module.
 
@@ -175,8 +179,8 @@ Do not introduce a custom exception framework before a feature needs it.
 We keep `backend/` inside the existing monorepo instead of replacing historical
 work. A version router gives endpoint registration a dedicated home. Package
 markers establish future persistence/business boundaries without premature ORM
-code. Security, utility helpers, and Alembic files are deferred to their actual
-implementation phases. No microservices, generic abstraction layer, or dependency
+code. Security and Alembic now have concrete implementations in their established
+boundaries. A utility module will be introduced only for a genuinely shared helper. No microservices, generic abstraction layer, or dependency
 injection container is needed; FastAPI dependencies will supply request resources.
 
 ## Team workflow and verification
@@ -195,11 +199,31 @@ From the backend directory, use the same commands as Phase 1:
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Expected: no broken requirements, 18 passing ordinary tests (14 database tests
-skipped), and a running local server. Use --run-db for all 32 tests.
+Expected: no broken requirements, 41 passing ordinary tests (39 database tests
+skipped), and a running local server. Use --run-db for all 80 tests.
 Then check `/api/v1/health` for HTTP 200 and `{"status":"ok"}`, and open `/docs`.
 The test-tool deprecation warning documented in the README is unchanged.
 
 Phase 3 now defines models and review-only schema SQL; the development database is now migrated in Phase 4. No new business APIs exist. Complete source code is in the README.
 Phase 4 connections, sessions, migrations and database tests are now verified.
-Phase 5 authentication awaits team confirmation.
+Phase 5 authentication/profile/RBAC is implemented and verified.
+Phase 6 address management awaits team confirmation.
+
+## Phase 5 request flow
+
+```mermaid
+flowchart LR
+    A[HTTP JSON request] --> B[Pydantic validation]
+    B --> C[Route and auth dependencies]
+    C --> D[Service owns transaction]
+    D --> E[User repository]
+    E --> F[PostgreSQL runtime role]
+    F --> G[Explicit response schema]
+```
+
+Registration hashes the password before writing, then creates user/profile/audit in
+one transaction. Login verifies Argon2 and current status before signing a minimal
+JWT. Protected requests verify claims, fetch current user/role, then authorize the
+operation. Profile routes never accept another user's ID. Invalid inputs and SQL
+errors are sanitized; authentication endpoints have bounded local throttling.
+These are backend APIs only. No dashboards or client screens were developed.

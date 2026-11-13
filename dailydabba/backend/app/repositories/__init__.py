@@ -1,5 +1,5 @@
-"""Future SQLAlchemy queries and persistence operations.
+"""SQLAlchemy queries and persistence operations, starting with user accounts.
 
-Repositories will receive a database session from their caller. They must not
-make HTTP decisions or commit a service's transaction independently.
+Repositories receive a session from their caller. They make no HTTP decisions
+and never independently commit a service transaction.
 """

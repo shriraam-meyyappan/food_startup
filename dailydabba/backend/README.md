@@ -1,28 +1,38 @@
-# DailyDabba backend — Phases 1 through 4
+# DailyDabba backend — complete through Phase 5
 
-Phases 1–3 are confirmed by the team. Phase 4 now connects PostgreSQL through
-SQLAlchemy/Psycopg, manages sessions and applies the first Alembic migration.
-The native local development database is running on 127.0.0.1:55432 at revision
-`0001_initial`, with 23 application tables plus Alembic's version table.
+**Detailed completed-work and remaining plan:** [implementation summary](docs/implementation-summary.md).
+**Try Phase 5 now:** [authentication guide](docs/authentication.md).
 
-**Start here:** [Phase 4 database setup](docs/database-setup.md). It includes the
-verified local setup, Docker option, exact commands, expected output, permissions,
-session/transaction explanations and safe migration workflow.
+The active FastAPI backend is running at <http://127.0.0.1:8000/docs> on this
+machine. PostgreSQL 17.12 is running on 127.0.0.1:55432. Phase 4 was checked and
+restored before Phase 5. All **80 tests pass** with one known upstream warning.
+No frontend was modified. No address/order/subscription/payment API is implemented yet.
 
-Also see [architecture](docs/architecture.md), [database design and ER diagram](docs/database-design.md),
-[read-only query examples](docs/example_queries.sql), [review-only model DDL](docs/schema.sql),
-and [progress/handoff](PROGRESS.md). The previous NestJS/Prisma starter in
-`../services/api` is preserved historical work. Both frontend apps are untouched.
+## What works now
 
-## Required software and dependencies
+- GET /api/v1/health: process liveness, `{"status":"ok"}`.
+- GET /api/v1/ready: database/UTC/migration readiness, `{"status":"ready"}`.
+- POST /api/v1/auth/register: creates a customer/profile/audit atomically.
+- POST /api/v1/auth/login: Argon2 verification and short-lived signed access token.
+- GET /api/v1/users/me: authenticated own-account/profile retrieval.
+- PATCH /api/v1/users/me/profile: permitted own-profile fields only.
+- GET /api/v1/admin/access-check: admin-only guard demonstration.
+- GET /api/v1/kitchen/access-check: kitchen staff/admin guard demonstration.
 
-Use Python 3.12+ (verified here with Python 3.13.5) and Git. For PostgreSQL use the
-verified native installation documented above, or Docker Desktop/Linux containers
-on another machine. The Python launcher is available here; the bare `python`
-command is a Windows Store alias, so explicit environment paths are used below.
-No PATH changes, Windows services or Git identity changes were made.
+There is no default admin password. Public requests cannot choose or change roles.
+Trusted staff accounts use the password-prompt CLI described in the auth guide.
+Roles and account status are read from the database on each protected request.
 
-On a fresh checkout, from the repository directory:
+## Environment and software
+
+Use Python 3.12+ (verified: 3.13.5), Git, and PostgreSQL 17. On this machine native
+PostgreSQL is already installed, outside the repository and OneDrive. Docker is
+not installed; Compose initialization is supplied but container launch is unverified.
+The previous NestJS/Prisma starter in ../services/api is preserved historical work.
+Both frontend apps remain blank starters and are outside the current scope.
+
+The virtual environment and configured .env already exist here. Do not recreate
+or overwrite them. For a fresh checkout:
 
 ```powershell
 cd C:\Users\rmshr\OneDrive\Desktop\food_startup\dailydabba\backend
@@ -31,133 +41,119 @@ py -3.13 -m venv .venv
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-The environment and configured .env already exist on this machine: do not recreate
-or overwrite them. Fresh setups must replace placeholder passwords, URL-encode
-reserved characters and provision roles/databases as described in the setup guide.
-Use the Python version installed on your machine, such as `py -3.12`, if different.
-On Linux/macOS create `.venv` with `python3 -m venv .venv` and use `.venv/bin/python`
-instead of the Windows executable path. No activation or script-policy change is
-needed when invoking the virtual environment's Python directly.
+Configure real local database URLs and generate a random JWT key BEFORE starting
+that fresh setup; see the authentication and database guides. The example signing
+key is intentionally rejected. Never commit .env or print passwords/tokens/keys.
+Settings use absolute backend .env paths with OS environment variables taking
+precedence. Real keys/passwords were generated into ignored local files, not docs.
 
-`requirements.in` records direct version constraints; `requirements.txt` pins the
-full tested environment, including developer tests. Do not regenerate the pins
-without reviewing and testing the new resolution. FastAPI/Uvicorn serve the API;
-Pydantic validates configuration/contracts; SQLAlchemy models/sessions work through
-Psycopg 3; Alembic versions the schema; Pytest/HTTPX test the backend. JWT and Argon2
-will be introduced only in the confirmed authentication phase.
+requirements.in lists direct constraints; requirements.txt pins the tested full
+environment. New Phase 5 dependencies are pwdlib[argon2], PyJWT and email-validator.
+On Linux/macOS create the environment with python3 and use .venv/bin/python for
+the commands below. Explicit interpreter paths avoid PowerShell activation-policy
+changes and the Windows Store alias for bare python on this machine.
 
-## Configuration
+## Start, stop and verify
 
-`DATABASE_URL` uses the limited application role. `MIGRATION_DATABASE_URL` uses the
-schema-owning migration role, never the running application. Optional
-`TEST_DATABASE_URL` points only to the disposable dailydabba_test database.
-APP_NAME and LOG_LEVEL configure naming/logging. The complete safe examples are
-included in the source appendix below. Local real values stay in ignored .env.
-
-Settings read the backend .env by absolute path; operating-system variables take
-precedence. Restart the API after changes. URL fields are masked in representations
-and validation input is hidden. Do not print configuration, commit credentials,
-or put migration/admin credentials into client applications.
-
-The root monorepo .env is separate and used only by Compose. Native development
-here uses port 55432; Docker examples use port 5432. Both are localhost-only.
-
-## Run and verify
-
-From the backend directory, after ensuring PostgreSQL is running:
+The API is already running now. After a reboot, start native PostgreSQL using the
+[database guide](docs/database-setup.md), then run the API helper from backend:
 
 ```powershell
-.\.venv\Scripts\python.exe -m alembic upgrade head
-.\.venv\Scripts\python.exe -m app.db.check
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+.\scripts\start-api.ps1
 ```
 
-Expected database check: status `ready`, timezone `UTC`, revision `0001_initial`.
-Stop an older API instance with Ctrl+C before starting it again. Use --reload
-only in local development. Host/port are Uvicorn command options, not unused settings.
+To stop only this managed API (leaving PostgreSQL running):
 
-In another terminal:
+```powershell
+.\scripts\stop-api.ps1
+```
+
+The helpers keep process identity and logs in ignored .local, never replace an
+unrelated listener, and check process identity before stopping it. They do not
+register a Windows service, enable public access or change execution policy.
+The managed API does not auto-reload. For source editing, stop it and run an
+interactive server instead:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload --no-proxy-headers
+```
+
+Ctrl+C stops the interactive server. Do not start a second server on the same port.
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/api/v1/health
 Invoke-RestMethod http://127.0.0.1:8000/api/v1/ready
+.\.venv\Scripts\python.exe -m app.db.check
+.\.venv\Scripts\python.exe -m alembic check
 ```
 
-Expected HTTP 200 responses: `{"status":"ok"}` and `{"status":"ready"}` respectively.
-Health is process liveness. Readiness requires a reachable database, UTC sessions
-and the current migration head, and returns sanitized HTTP 503 on failure.
-Open [Swagger](http://127.0.0.1:8000/docs) and try both operations. `/openapi.json`
-is also served locally; Swagger browser assets require internet access.
+Expected: ok; ready; CLI ready/UTC/0001_initial; no new upgrade operations detected.
+The database has 23 application tables plus alembic_version. Phase 5 added no schema
+migration and did not change the applied initial revision. The application never
+creates tables or runs migrations on startup. Services explicitly own commits;
+request sessions close and roll back unfinished/failed work.
 
-The live server's health, readiness, docs and OpenAPI were verified over HTTP.
-There are no other business APIs yet. Registration/login belong to Phase 5.
+## Try authentication
 
-## Checks and migration workflow
+Open [Swagger](http://127.0.0.1:8000/docs). Register with your own email/name and a
+private 12–128-character password; expect 201 and role customer. Login with the
+same credentials; expect a bearer access token. Paste only the token value into
+Swagger's Authorize field. GET /users/me and PATCH /users/me/profile should work;
+admin/kitchen checks should return 403 for a customer. This denial is intentional.
+
+The [authentication guide](docs/authentication.md) provides complete field contracts,
+expected errors, a password-prompt PowerShell example, privileged account creation,
+rate-limit behavior, token lifetime, safeguards and current production limitations.
+It contains no real password, signing key or token.
+
+## Run tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip check
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m pytest -q --run-db
-.\.venv\Scripts\python.exe -m alembic current
-.\.venv\Scripts\python.exe -m alembic check
 ```
 
-Expected: no broken requirements; ordinary tests `18 passed, 14 skipped`; opt-in
-database tests `32 passed`; migration head `0001_initial`; and no new upgrade
-operations detected. One existing upstream Starlette/AnyIO deprecated-alias warning
-remains and is not a failure.
+Expected: no broken requirements; ordinary run **41 passed, 39 skipped**; full
+opt-in run **80 passed**. One known Starlette/AnyIO deprecated-alias warning remains.
+Password hashing and real database checks mean the full suite can take a minute
+or more. Tests do not contact a payment or notification provider.
 
-**--run-db resets ONLY the disposable dailydabba_test database.** It verifies
-upgrade/downgrade/upgrade, database constraints, restricted runtime privileges,
-UTC, computed/history prices, duplicate requests/provider IDs, and request rollback.
-It refuses development or unknown database names and unknown extra test tables.
-Do not keep useful data in the test database. Its migration state is returned to
-base afterward; development data is not reset.
+--run-db intentionally resets only the disposable dailydabba_test database. The
+fixture verifies the ACTUAL connected database name, rejects development or unknown
+tables, tests upgrade/downgrade, and cleans up afterward. Do not keep useful data
+there. Authentication requests use real runtime-role sessions, not elevated
+migration sessions. Failed-registration rollback and concurrent duplicate signup
+are tested against PostgreSQL.
 
-Alembic is the authoritative schema history. Review new revisions before applying
-them; never edit an already-applied revision or automatically create/migrate tables
-on server startup. `docs/schema.sql` is review-only DDL and does not carry runtime
-grants; do not use it instead of migrations. The Phase 4 guide explains rollback
-risks, backups and future schema changes. Docker launch remains unverified here
-because Docker is absent; native PostgreSQL and all 32 tests are verified.
+## Documentation and responsibilities
 
-## Code organization
+- [Implementation summary/remaining plan](docs/implementation-summary.md): detailed history through Phase 5 and Phases 6–15 plan.
+- [Architecture](docs/architecture.md): routes/schemas/services/repositories/models and request flow.
+- [Database design](docs/database-design.md): 23 tables, Mermaid ER diagram, all columns and constraints.
+- [Database setup](docs/database-setup.md): native/Docker setup, credentials, session permissions and safe migrations.
+- [Authentication](docs/authentication.md): real API walkthrough, staff accounts and security boundaries.
+- [Progress](PROGRESS.md): compact continuation handoff and next confirmation point.
+- [Review-only schema](docs/schema.sql) and [SQL examples](docs/example_queries.sql): design/reference artifacts; Alembic is authoritative for schema changes.
 
-- `app/main.py`: application factory/lifecycle, versioned routes and engine disposal.
-- `app/core`: validated settings and UTC console logging.
-- `app/api/v1`: central router, health and database readiness endpoints.
-- `app/schemas`: explicit Pydantic response contracts.
-- `app/db`: metadata, engine/scoped sessions, safe connectivity check, explicit local
-  admin provisioning tool, and offline DDL exporter.
-- `app/models`: identity, catalog, commerce, subscription, payment and operations mappings.
-- `app/services`, `app/repositories`: established boundaries for later business work.
-- `app/tests`: HTTP/configuration/model tests and opt-in real PostgreSQL tests.
-- `alembic`: environment, revision template, and frozen initial schema/permission migration.
-- `scripts`: optional start/stop helpers for this machine's portable PostgreSQL.
-- `docs`: explanations, ER diagram, SQL examples and database setup guide.
+The code is a modular monolith. main.py builds the app/lifecycle. Routes handle
+HTTP, schemas validate contracts, services coordinate transactions, repositories
+issue queries, and models define storage. Security helpers do hashing/JWT verification;
+request dependencies check current users/roles. No generic microservice framework
+or frontend component was introduced.
 
-Routes validate requests with schemas and will call services when business rules
-exist. Services will own complete transactions; repositories will query using an
-injected session. The current get_session dependency closes sessions and rolls back
-unfinished/failed work; it does not commit on behalf of a service. No authentication,
-credit service, payment collection or frontend change is hidden in this foundation.
+Phase 5 is complete and awaits confirmation. Next is Phase 6: own-address management.
+No Phase 6 feature is implemented yet. Source changes remain uncommitted for review;
+Git identity, initial commit and frontend apps are unchanged.
 
-## Phase status
+## Complete current source and configuration
 
-The user confirmed 14 passing Phase 3 tests and authorized Phase 4. Database
-integration is now complete and locally verified. PostgreSQL remains running for
-development; use the setup guide after reboot. Changes remain uncommitted for review.
-
-Review the guide and verify readiness plus the 32-test run. Wait for explicit
-Phase 4 confirmation before Phase 5: registration, login, Argon2, JWT and roles.
-
-## Complete current source and dependency files
-
-Backend file paths below are relative to:
-`C:/Users/rmshr/OneDrive/Desktop/food_startup/dailydabba/backend`.
-All source/configuration code is included in full. Real local .env/admin passwords,
-binaries, database data and generated caches are intentionally excluded. The safe
-.env.example shows the required configuration keys.
+Backend paths below are relative to:
+C:/Users/rmshr/OneDrive/Desktop/food_startup/dailydabba/backend.
+Real local environment/admin secrets, binary installations, database data and caches
+are excluded. Complete safe source/configuration code follows; documentation/SQL
+artifacts are linked above. Every source file is also available directly in app/,
+alembic/ and scripts/ for normal editing.
 
 ### .gitignore
 
@@ -187,12 +183,19 @@ DATABASE_URL="postgresql+psycopg://dailydabba_app:replace_app_password@127.0.0.1
 MIGRATION_DATABASE_URL="postgresql+psycopg://dailydabba_migrator:replace_migration_password@127.0.0.1:5432/dailydabba"
 # Optional: dedicated empty test database, never your development database.
 # TEST_DATABASE_URL="postgresql+psycopg://dailydabba_migrator:replace_migration_password@127.0.0.1:5432/dailydabba_test"
+
+# Generate a fresh secret; never use the placeholder or print the real key.
+JWT_SECRET=replace_with_a_random_secret_before_starting
+JWT_ISSUER=dailydabba-api
+JWT_AUDIENCE=dailydabba-clients
+ACCESS_TOKEN_MINUTES=15
+AUTH_RATE_LIMIT_PER_MINUTE=10
 ```
 
 ### requirements.in
 
 ```text
-# Direct backend dependencies through Phase 4. requirements.txt pins the tested full resolution.
+# Direct backend dependencies through Phase 5. requirements.txt pins the tested full resolution.
 fastapi>=0.115,<1
 uvicorn>=0.30,<1
 pydantic>=2.10,<3
@@ -208,6 +211,11 @@ SQLAlchemy>=2.0,<2.1
 
 alembic>=1.16,<2
 psycopg[binary]>=3.2,<4
+
+# Password hashing, signed JWTs and Pydantic email validation.
+pwdlib[argon2]>=0.2,<1
+PyJWT>=2.10,<3
+email-validator>=2.2,<3
 ```
 
 ### requirements.txt
@@ -217,9 +225,14 @@ alembic==1.20.1
 annotated-doc==0.0.6
 annotated-types==0.8.0
 anyio==4.16.0
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.2.0
 certifi==2026.10.23
+cffi==2.1.1
 click==8.5.1
 colorama==0.4.6
+dnspython==2.9.2
+email-validator==2.3.0
 fastapi==0.162.5
 greenlet==3.5.6
 h11==0.16.0
@@ -234,10 +247,13 @@ packaging==26.3
 pluggy==1.7.0
 psycopg==3.3.9
 psycopg-binary==3.3.9
+pwdlib==0.3.1
+pycparser==3.12
 pydantic==2.14.3
 pydantic-settings==2.16.2
 pydantic_core==2.50.4
 Pygments==2.21.0
+PyJWT==2.15.1
 pytest==9.2.0
 python-dotenv==1.2.4
 SQLAlchemy==2.0.57
@@ -305,10 +321,145 @@ def downgrade() -> None:
 """HTTP API routes."""
 ```
 
+### app/api/dependencies.py
+
+```python
+"""Verified bearer identities and live database-backed role authorization."""
+
+from typing import Annotated, Callable
+from uuid import UUID
+
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.core.config import Settings
+from app.core.security import decode_access_token
+from app.db.database import DbSession
+from app.models.identity import User
+from app.repositories import users
+
+bearer = HTTPBearer(auto_error=False)
+
+
+def request_settings(request: Request) -> Settings:
+    return request.app.state.settings
+
+
+RequestSettings = Annotated[Settings, Depends(request_settings)]
+
+
+def unauthenticated() -> HTTPException:
+    return HTTPException(
+        401, "Invalid or expired credentials", headers={"WWW-Authenticate": "Bearer"}
+    )
+
+
+def token_subject(
+    settings: RequestSettings,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+) -> UUID:
+    if credentials is None:
+        raise unauthenticated()
+    return decode_access_token(credentials.credentials, settings)
+
+
+def current_user(
+    subject: Annotated[UUID, Depends(token_subject)], session: DbSession
+) -> User:
+    user = users.by_id(session, subject)
+    if user is None or not user.is_active or user.deactivated_at is not None:
+        raise unauthenticated()
+    return user
+
+
+CurrentUser = Annotated[User, Depends(current_user)]
+
+
+def require_roles(*roles: str) -> Callable:
+    def authorize(user: CurrentUser) -> User:
+        if user.role not in roles:
+            raise HTTPException(403, "Insufficient permissions")
+        return user
+
+    return authorize
+
+
+def throttle_auth(request: Request) -> None:
+    host = request.client.host if request.client else "unknown"
+    retry = request.app.state.auth_limiter.retry_after(host + ":" + request.url.path)
+    if retry is not None:
+        raise HTTPException(
+            429, "Too many authentication requests", headers={"Retry-After": str(retry)}
+        )
+```
+
 ### app/api/v1/__init__.py
 
 ```python
 """Version 1 API routes."""
+```
+
+### app/api/v1/access.py
+
+```python
+"""Role-guard demonstrations only; operational APIs remain Phase 12 work."""
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+
+from app.api.dependencies import require_roles
+from app.models.identity import User
+from app.schemas.auth import AccessResponse
+
+router = APIRouter(tags=["Role access checks"])
+
+
+@router.get("/admin/access-check", response_model=AccessResponse)
+def admin_access(
+    user: Annotated[User, Depends(require_roles("admin"))],
+) -> AccessResponse:
+    return AccessResponse(role=user.role)
+
+
+@router.get("/kitchen/access-check", response_model=AccessResponse)
+def kitchen_access(
+    user: Annotated[User, Depends(require_roles("admin", "kitchen_staff"))],
+) -> AccessResponse:
+    return AccessResponse(role=user.role)
+```
+
+### app/api/v1/auth.py
+
+```python
+"""Frontend-independent JSON registration and password login endpoints."""
+
+from fastapi import APIRouter, Depends
+
+from app.api.dependencies import RequestSettings, throttle_auth
+from app.core.security import require_signing_key
+from app.db.database import DbSession
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from app.services import auth
+
+router = APIRouter(
+    prefix="/auth", tags=["Authentication"], dependencies=[Depends(throttle_auth)]
+)
+
+
+@router.post("/register", response_model=UserResponse, status_code=201)
+def register(payload: RegisterRequest, session: DbSession) -> UserResponse:
+    return auth.register(session, payload)
+
+
+@router.post("/login", response_model=TokenResponse)
+def login(
+    payload: LoginRequest, settings: RequestSettings, session: DbSession
+) -> TokenResponse:
+    require_signing_key(settings)
+    return auth.login(
+        session, str(payload.email), payload.password.get_secret_value(), settings
+    )
 ```
 
 ### app/api/v1/health.py
@@ -367,11 +518,111 @@ from fastapi import APIRouter
 
 from app.api.v1.health import router as health_router
 from app.api.v1.readiness import router as readiness_router
+from app.api.v1.auth import router as auth_router
+from app.api.v1.users import router as users_router
+from app.api.v1.access import router as access_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)
 
 api_router.include_router(readiness_router)
+
+api_router.include_router(auth_router)
+api_router.include_router(users_router)
+api_router.include_router(access_router)
+```
+
+### app/api/v1/users.py
+
+```python
+"""Self-service profile access, never arbitrary user-ID updates."""
+
+from fastapi import APIRouter
+
+from app.api.dependencies import CurrentUser
+from app.db.database import DbSession
+from app.schemas.auth import ProfileUpdate, UserResponse
+from app.services.profiles import update_profile
+
+router = APIRouter(prefix="/users", tags=["Current user"])
+
+
+@router.get("/me", response_model=UserResponse)
+def me(user: CurrentUser) -> UserResponse:
+    return UserResponse.model_validate(user)
+
+
+@router.patch("/me/profile", response_model=UserResponse)
+def patch_profile(
+    payload: ProfileUpdate, user: CurrentUser, session: DbSession
+) -> UserResponse:
+    return update_profile(session, user, payload)
+```
+
+### app/cli/__init__.py
+
+```python
+"""Explicit local administration commands, never public API endpoints."""
+```
+
+### app/cli/create_staff.py
+
+```python
+"""Create an admin or kitchen account via a trusted local password prompt."""
+
+import argparse
+from getpass import getpass
+
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.core.config import get_settings
+from app.db.database import Database
+from app.schemas.auth import RegisterRequest
+from app.services.auth import AccountExists, create_account
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--email", required=True)
+    parser.add_argument("--full-name", required=True)
+    parser.add_argument("--role", choices=["admin", "kitchen_staff"], required=True)
+    args = parser.parse_args()
+    settings = get_settings()
+    if settings.migration_database_url is None:
+        raise SystemExit("This trusted local command requires migration credentials")
+    password = getpass("Password (12–128 characters): ")
+    if password != getpass("Confirm password: "):
+        raise SystemExit("Passwords do not match")
+    try:
+        payload = RegisterRequest(
+            email=args.email, full_name=args.full_name, password=password
+        )
+    except ValidationError:
+        raise SystemExit(
+            "Invalid email, name or password; see the authentication guide"
+        ) from None
+    database = Database.from_url(settings.migration_database_url)
+    try:
+        with database.sessions() as session:
+            result = create_account(session, payload, role=args.role)
+        print(
+            f"Created {result.role} account {result.id}; no password or token was printed"
+        )
+    except AccountExists:
+        raise SystemExit(
+            "Account already exists; no existing role was changed"
+        ) from None
+    except SQLAlchemyError:
+        raise SystemExit(
+            "Database operation failed; check migration/configuration"
+        ) from None
+    finally:
+        database.dispose()
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 ### app/core/__init__.py
@@ -406,6 +657,25 @@ class Settings(BaseSettings):
     migration_database_url: SecretStr | None = Field(default=None, repr=False)
     test_database_url: SecretStr | None = Field(default=None, repr=False)
 
+    jwt_secret: SecretStr | None = Field(default=None, repr=False)
+    jwt_issuer: str = Field(default="dailydabba-api", min_length=1, max_length=120)
+    jwt_audience: str = Field(
+        default="dailydabba-clients", min_length=1, max_length=120
+    )
+    access_token_minutes: int = Field(default=15, ge=1, le=60)
+    auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def validate_jwt_secret(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None:
+            secret = value.get_secret_value()
+            if len(secret.encode("utf-8")) < 32 or secret.startswith("replace_"):
+                raise ValueError(
+                    "JWT_SECRET must be a generated secret of at least 32 bytes"
+                )
+        return value
+
     @field_validator("database_url", "migration_database_url", "test_database_url")
     @classmethod
     def validate_postgres_url(cls, value: SecretStr | None) -> SecretStr | None:
@@ -439,6 +709,80 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Validate settings once per server process."""
     return Settings()
+```
+
+### app/core/errors.py
+
+```python
+"""Safe API error responses; never echo validation inputs or SQL parameters."""
+
+import logging
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.core.security import AuthNotConfigured, InvalidCredentials
+from app.services.auth import AccountExists
+from app.services.profiles import ProfileNameRequired
+
+logger = logging.getLogger(__name__)
+
+
+def install_error_handlers(application: FastAPI) -> None:
+    @application.exception_handler(RequestValidationError)
+    async def invalid_input(
+        request: Request, error: RequestValidationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [
+                    {"loc": list(item["loc"]), "type": item["type"], "msg": item["msg"]}
+                    for item in error.errors()
+                ]
+            },
+        )
+
+    @application.exception_handler(InvalidCredentials)
+    async def invalid_credentials(
+        request: Request, error: InvalidCredentials
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or expired credentials"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    @application.exception_handler(AuthNotConfigured)
+    async def unavailable_auth(
+        request: Request, error: AuthNotConfigured
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503, content={"detail": "Authentication unavailable"}
+        )
+
+    @application.exception_handler(AccountExists)
+    async def duplicate_account(request: Request, error: AccountExists) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "An account already exists for this email"},
+        )
+
+    @application.exception_handler(ProfileNameRequired)
+    async def profile_name_required(
+        request: Request, error: ProfileNameRequired
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "full_name is required to create a profile"},
+        )
+
+    @application.exception_handler(SQLAlchemyError)
+    async def database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
+        logger.error("Database request failed")
+        return JSONResponse(status_code=503, content={"detail": "Database unavailable"})
 ```
 
 ### app/core/logging.py
@@ -485,6 +829,142 @@ def configure_logging(level: str) -> None:
             },
         }
     )
+```
+
+### app/core/rate_limit.py
+
+```python
+"""Bounded process-local throttling keyed by the ASGI client address."""
+
+import math
+from collections import deque
+from collections.abc import Callable
+from threading import Lock
+from time import monotonic
+
+
+class AuthRateLimiter:
+    def __init__(self, limit: int, clock: Callable[[], float] = monotonic) -> None:
+        self.limit = limit
+        self.clock = clock
+        self.events: dict[str, deque[float]] = {}
+        self.lock = Lock()
+
+    def retry_after(self, key: str) -> int | None:
+        with self.lock:
+            now = self.clock()
+            for old_key in list(self.events):
+                queue = self.events[old_key]
+                while queue and queue[0] <= now - 60:
+                    queue.popleft()
+                if not queue:
+                    del self.events[old_key]
+            if key not in self.events and len(self.events) >= 4096:
+                return 60
+            queue = self.events.setdefault(key, deque())
+            if len(queue) >= self.limit:
+                return max(1, math.ceil(60 - (now - queue[0])))
+            queue.append(now)
+            return None
+```
+
+### app/core/security.py
+
+```python
+"""Argon2 password hashing and strictly verified short-lived JWT access tokens."""
+
+import secrets
+from datetime import datetime, timedelta, timezone
+from uuid import UUID, uuid4
+
+import jwt
+from pwdlib import PasswordHash
+from pwdlib.exceptions import UnknownHashError
+
+from app.core.config import Settings
+
+_password_hash = PasswordHash.recommended()
+_dummy_hash = _password_hash.hash(secrets.token_urlsafe(32))
+
+
+class InvalidCredentials(Exception):
+    pass
+
+
+class AuthNotConfigured(Exception):
+    pass
+
+
+def hash_password(password: str) -> str:
+    return _password_hash.hash(password)
+
+
+def verify_password(password: str, stored_hash: str | None) -> tuple[bool, str | None]:
+    """Unknown emails still incur a real Argon2 check; malformed hashes fail closed."""
+    try:
+        valid, updated = _password_hash.verify_and_update(
+            password, stored_hash or _dummy_hash
+        )
+    except (UnknownHashError, ValueError):
+        _password_hash.verify(password, _dummy_hash)
+        return False, None
+    return valid and bool(stored_hash), updated
+
+
+def require_signing_key(settings: Settings) -> str:
+    if settings.jwt_secret is None:
+        raise AuthNotConfigured()
+    return settings.jwt_secret.get_secret_value()
+
+
+def create_access_token(user_id: UUID, settings: Settings) -> str:
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "iat": now,
+            "nbf": now,
+            "exp": now + timedelta(minutes=settings.access_token_minutes),
+            "iss": settings.jwt_issuer,
+            "aud": settings.jwt_audience,
+            "jti": str(uuid4()),
+            "token_type": "access",
+        },
+        require_signing_key(settings),
+        algorithm="HS256",
+    )
+
+
+def decode_access_token(token: str, settings: Settings) -> UUID:
+    key = require_signing_key(settings)
+    try:
+        if len(token) > 4096:
+            raise InvalidCredentials()
+        payload = jwt.decode(
+            token,
+            key,
+            algorithms=["HS256"],
+            issuer=settings.jwt_issuer,
+            audience=settings.jwt_audience,
+            options={
+                "require": [
+                    "sub",
+                    "iat",
+                    "nbf",
+                    "exp",
+                    "iss",
+                    "aud",
+                    "jti",
+                    "token_type",
+                ]
+            },
+        )
+        if payload["token_type"] != "access":
+            raise InvalidCredentials()
+        UUID(payload["jti"])
+        return UUID(payload["sub"])
+    except (jwt.InvalidTokenError, ValueError, TypeError, KeyError):
+        raise InvalidCredentials() from None
 ```
 
 ### app/db/__init__.py
@@ -829,11 +1309,13 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
+from app.core.errors import install_error_handlers
+from app.core.rate_limit import AuthRateLimiter
 from app.db.database import Database
 
 logger = logging.getLogger(__name__)
@@ -863,6 +1345,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
         debug=False,
     )
+    application.state.settings = settings
+    application.state.auth_limiter = AuthRateLimiter(
+        settings.auth_rate_limit_per_minute
+    )
+    install_error_handlers(application)
+
+    @application.middleware("http")
+    async def prevent_api_caching(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     application.include_router(api_router)
     return application
 
@@ -1675,17 +2170,141 @@ class CreditTransaction(Record, Base):
 ### app/repositories/__init__.py
 
 ```python
-"""Future SQLAlchemy queries and persistence operations.
+"""SQLAlchemy queries and persistence operations, starting with user accounts.
 
-Repositories will receive a database session from their caller. They must not
-make HTTP decisions or commit a service's transaction independently.
+Repositories receive a session from their caller. They make no HTTP decisions
+and never independently commit a service transaction.
 """
+```
+
+### app/repositories/users.py
+
+```python
+"""User persistence; no HTTP decisions and no independent commits."""
+
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session, selectinload
+
+from app.models.identity import User
+
+
+def by_email(session: Session, email: str) -> User | None:
+    return session.scalar(
+        select(User).where(User.email == email).options(selectinload(User.profile))
+    )
+
+
+def by_id(session: Session, user_id: UUID) -> User | None:
+    return session.scalar(
+        select(User).where(User.id == user_id).options(selectinload(User.profile))
+    )
+
+
+def insert_account(
+    session: Session, *, email: str, password_hash: str, role: str
+) -> User | None:
+    """Unique email handles concurrent registration without a pre-check race."""
+    return session.scalar(
+        insert(User)
+        .values(
+            email=email,
+            password_hash=password_hash,
+            role=role,
+            is_active=True,
+        )
+        .on_conflict_do_nothing(index_elements=[User.email])
+        .returning(User)
+    )
 ```
 
 ### app/schemas/__init__.py
 
 ```python
 """Validated API request and response contracts."""
+```
+
+### app/schemas/auth.py
+
+```python
+"""Authentication input/output contracts; passwords are write-only secrets."""
+
+from datetime import datetime
+from typing import Annotated, Literal
+from uuid import UUID
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    SecretStr,
+    StringConstraints,
+    model_validator,
+)
+
+Role = Literal["customer", "admin", "kitchen_staff"]
+Name = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)
+]
+Phone = Annotated[str, StringConstraints(pattern=r"^\+[1-9][0-9]{7,14}$")]
+
+
+class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: EmailStr = Field(max_length=254)
+    password: SecretStr = Field(min_length=12, max_length=128)
+    full_name: Name
+    phone: Phone | None = None
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: EmailStr = Field(max_length=254)
+    password: SecretStr = Field(min_length=1, max_length=128)
+
+
+class ProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    full_name: Name | None = None
+    phone: Phone | None = None
+
+    @model_validator(mode="after")
+    def valid_update(self) -> "ProfileUpdate":
+        if not self.model_fields_set:
+            raise ValueError("Provide full_name or phone")
+        if "full_name" in self.model_fields_set and self.full_name is None:
+            raise ValueError("full_name cannot be null")
+        return self
+
+
+class ProfileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    full_name: str
+    phone: str | None
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    email: str
+    role: Role
+    is_active: bool
+    created_at: datetime
+    profile: ProfileResponse | None
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
+
+
+class AccessResponse(BaseModel):
+    status: Literal["allowed"] = "allowed"
+    role: Role
 ```
 
 ### app/schemas/health.py
@@ -1713,11 +2332,140 @@ class ReadinessResponse(BaseModel):
 ### app/services/__init__.py
 
 ```python
-"""Future business use cases and transaction coordination.
+"""Business use cases and transaction coordination.
 
-Services will apply business rules and call repositories. They must not depend
-on FastAPI routes or HTTP request and response objects.
+Authentication and profile services own complete commits and call repositories.
+Services do not depend on FastAPI route or HTTP request/response objects.
 """
+```
+
+### app/services/auth.py
+
+```python
+"""Account and authentication use cases own their transactions."""
+
+from sqlalchemy.orm import Session
+
+from app.core.config import Settings
+from app.core.security import (
+    InvalidCredentials,
+    create_access_token,
+    hash_password,
+    verify_password,
+)
+from app.models.identity import CustomerProfile
+from app.models.operations import AuditLog
+from app.repositories import users
+from app.schemas.auth import RegisterRequest, TokenResponse, UserResponse
+
+
+class AccountExists(Exception):
+    pass
+
+
+def create_account(
+    session: Session, payload: RegisterRequest, *, role: str = "customer"
+) -> UserResponse:
+    """Only trusted code supplies role; the public route always calls register()."""
+    if role not in {"customer", "admin", "kitchen_staff"}:
+        raise ValueError("Unsupported role")
+    password_hash = hash_password(payload.password.get_secret_value())
+    with session.begin():
+        user = users.insert_account(
+            session,
+            email=str(payload.email).lower(),
+            password_hash=password_hash,
+            role=role,
+        )
+        if user is None:
+            raise AccountExists()
+        user.profile = CustomerProfile(
+            user_id=user.id, full_name=payload.full_name, phone=payload.phone
+        )
+        session.add(
+            AuditLog(
+                actor_user_id=None,
+                action=(
+                    "account_registered"
+                    if role == "customer"
+                    else "staff_account_created"
+                ),
+                target_type="users",
+                target_id=user.id,
+                details={"role": role},
+            )
+        )
+        session.flush()
+        response = UserResponse.model_validate(user)
+    return response
+
+
+def register(session: Session, payload: RegisterRequest) -> UserResponse:
+    return create_account(session, payload, role="customer")
+
+
+def login(
+    session: Session, email: str, password: str, settings: Settings
+) -> TokenResponse:
+    with session.begin():
+        user = users.by_email(session, email.lower())
+        valid, upgraded_hash = verify_password(
+            password, user.password_hash if user else None
+        )
+        if (
+            not valid
+            or user is None
+            or not user.is_active
+            or user.deactivated_at is not None
+        ):
+            raise InvalidCredentials()
+        if upgraded_hash:
+            user.password_hash = upgraded_hash
+        token = create_access_token(user.id, settings)
+    return TokenResponse(
+        access_token=token, expires_in=settings.access_token_minutes * 60
+    )
+```
+
+### app/services/profiles.py
+
+```python
+"""Update only the authenticated user's permitted profile fields."""
+
+from sqlalchemy.orm import Session
+
+from app.models.identity import CustomerProfile, User
+from app.models.operations import AuditLog
+from app.schemas.auth import ProfileUpdate, UserResponse
+
+
+class ProfileNameRequired(Exception):
+    pass
+
+
+def update_profile(
+    session: Session, user: User, payload: ProfileUpdate
+) -> UserResponse:
+    if user.profile is None:
+        if payload.full_name is None:
+            raise ProfileNameRequired()
+        user.profile = CustomerProfile(user_id=user.id, full_name=payload.full_name)
+    for field in payload.model_fields_set:
+        setattr(user.profile, field, getattr(payload, field))
+    session.add(
+        AuditLog(
+            actor_user_id=user.id,
+            action="profile_updated",
+            target_type="users",
+            target_id=user.id,
+            details={"fields": sorted(payload.model_fields_set)},
+        )
+    )
+    # The current-user lookup already started this request's transaction.
+    session.flush()
+    response = UserResponse.model_validate(user)
+    session.commit()
+    return response
 ```
 
 ### app/tests/__init__.py
@@ -1729,9 +2477,22 @@ on FastAPI routes or HTTP request and response objects.
 ### app/tests/conftest.py
 
 ```python
-"""Database tests are opt-in and may reset ONLY the dedicated test database."""
+"""Guarded real-PostgreSQL fixtures and opt-in test configuration."""
+
+import os
+from unittest.mock import patch
 
 import pytest
+from alembic import command
+from alembic.config import Config
+from pydantic import SecretStr
+from sqlalchemy import inspect, text
+from sqlalchemy.engine import make_url
+
+import app.models  # noqa: F401
+from app.core.config import BACKEND_ROOT, get_settings
+from app.db.base import Base
+from app.db.database import Database
 
 
 def pytest_addoption(parser):
@@ -1746,6 +2507,493 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "database: opt-in real PostgreSQL integration checks"
     )
+
+
+@pytest.fixture(scope="session")
+def databases(request):
+    if not request.config.getoption("--run-db"):
+        pytest.skip("Use --run-db with a dedicated TEST_DATABASE_URL")
+    settings = get_settings()
+    if not settings.test_database_url or not settings.database_url:
+        pytest.fail("Configure TEST_DATABASE_URL and DATABASE_URL first")
+    test_url = make_url(settings.test_database_url.get_secret_value())
+    app_url = make_url(settings.database_url.get_secret_value())
+    if test_url.database != "dailydabba_test" or test_url.database == app_url.database:
+        pytest.fail(
+            "Refusing to reset anything except the separate dailydabba_test database"
+        )
+    if (test_url.host, test_url.port) != (app_url.host, app_url.port):
+        pytest.fail("Test and runtime credentials must refer to the same local server")
+    engine = Database.from_url(settings.test_database_url)
+    runtime_url = app_url.set(database=test_url.database)
+    runtime = Database.from_url(
+        SecretStr(runtime_url.render_as_string(hide_password=False))
+    )
+    config = Config(str(BACKEND_ROOT / "alembic.ini"))
+
+    def migrate(action, target=None):
+        with patch.dict(
+            os.environ,
+            {"MIGRATION_DATABASE_URL": settings.test_database_url.get_secret_value()},
+        ):
+            get_settings.cache_clear()
+            try:
+                if action == "check":
+                    command.check(config)
+                elif action == "upgrade":
+                    command.upgrade(config, target)
+                else:
+                    command.downgrade(config, target)
+            finally:
+                get_settings.cache_clear()
+
+    # Validate the actual target too, not only the URL's database component.
+    with engine.engine.connect() as connection:
+        actual_database = connection.execute(
+            text("SELECT current_database()")
+        ).scalar_one()
+    if actual_database != "dailydabba_test":
+        engine.dispose()
+        runtime.dispose()
+        pytest.fail(
+            "Connected database is not dailydabba_test; refusing destructive reset"
+        )
+    existing = set(inspect(engine.engine).get_table_names(schema="public"))
+    if existing - set(Base.metadata.tables) - {"alembic_version"}:
+        engine.dispose()
+        runtime.dispose()
+        pytest.fail("Unknown tables in test database; refusing destructive reset")
+    # Explicitly opted-in scratch DB only. Exercise both migration directions.
+    migrate("downgrade", "base")
+    migrate("upgrade", "head")
+    migrate("downgrade", "base")
+    assert set(inspect(engine.engine).get_table_names()) <= {"alembic_version"}
+    migrate("upgrade", "head")
+    try:
+        yield engine, runtime, migrate
+    finally:
+        runtime.dispose()
+        migrate("downgrade", "base")
+        engine.dispose()
+```
+
+### app/tests/test_auth_integration.py
+
+```python
+"""Registration/login/profile/RBAC through real HTTP handlers and runtime DB role."""
+
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from uuid import uuid4
+
+import jwt
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import SecretStr
+from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.core.config import Settings
+from app.core.security import create_access_token, verify_password
+from app.main import create_app
+from app.models.identity import CustomerProfile, User
+from app.models.operations import AuditLog
+from app.schemas.auth import RegisterRequest
+from app.services import auth as auth_service
+
+pytestmark = pytest.mark.database
+PASSWORD = "Only-for-tests-long-password!"
+
+
+@pytest.fixture
+def auth_api(databases):
+    migration, runtime, _ = databases
+    # The shared fixture verified actual current_database() == dailydabba_test.
+    from app.db.base import Base
+
+    tables = ", ".join('public."' + name + '"' for name in Base.metadata.tables)
+
+    def clean():
+        with migration.engine.begin() as connection:
+            connection.execute(text("TRUNCATE TABLE " + tables + " CASCADE"))
+
+    clean()
+    settings = Settings(
+        _env_file=None,
+        database_url=SecretStr(
+            runtime.engine.url.render_as_string(hide_password=False)
+        ),
+        jwt_secret=SecretStr("integration-test-signing-key-at-least-32-bytes"),
+        auth_rate_limit_per_minute=500,
+    )
+    application = create_app(settings)
+    try:
+        with TestClient(application) as client:
+            yield client, migration, settings
+    finally:
+        clean()
+
+
+def register(client, email=None, **overrides):
+    data = {
+        "email": email or f"user-{uuid4().hex}@example.com",
+        "password": PASSWORD,
+        "full_name": " Test Customer ",
+        "phone": "+919876543210",
+    }
+    data.update(overrides)
+    return client.post("/api/v1/auth/register", json=data)
+
+
+def login(client, email, password=PASSWORD):
+    return client.post(
+        "/api/v1/auth/login", json={"email": email, "password": password}
+    )
+
+
+def headers(client, email):
+    response = login(client, email)
+    assert response.status_code == 200
+    return {"Authorization": "Bearer " + response.json()["access_token"]}
+
+
+def test_registration_is_canonical_atomic_and_never_returns_password(auth_api):
+    client, database, _ = auth_api
+    email = f"MiXeD-{uuid4().hex}@EXAMPLE.COM"
+    response = register(client, email)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["email"] == email.lower()
+    assert body["role"] == "customer" and body["is_active"]
+    assert body["profile"] == {"full_name": "Test Customer", "phone": "+919876543210"}
+    assert "password" not in response.text and PASSWORD not in response.text
+    with database.sessions() as session:
+        user = session.scalar(select(User).where(User.email == email.lower()))
+        assert user.password_hash.startswith("$argon2id$")
+        assert verify_password(PASSWORD, user.password_hash)[0]
+        assert session.scalar(select(func.count()).select_from(CustomerProfile)) == 1
+        assert session.scalar(select(func.count()).select_from(AuditLog)) == 1
+
+
+def test_duplicate_registration_is_409_without_partial_records(auth_api):
+    client, database, _ = auth_api
+    email = f"duplicate-{uuid4().hex}@example.com"
+    assert register(client, email).status_code == 201
+    assert register(client, email.upper()).status_code == 409
+    with database.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(User)) == 1
+        assert session.scalar(select(func.count()).select_from(CustomerProfile)) == 1
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("role", "admin"),
+        ("is_active", True),
+        ("password_hash", "attacker"),
+        ("id", str(uuid4())),
+    ],
+)
+def test_registration_cannot_assign_privileged_fields(auth_api, field, value):
+    client, database, _ = auth_api
+    assert register(client, **{field: value}).status_code == 422
+    with database.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(User)) == 0
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"email": "invalid-email"},
+        {"password": "tiny"},
+        {"password": "x" * 129},
+        {"full_name": "   "},
+        {"phone": "invalid"},
+    ],
+)
+def test_invalid_registration_inputs_do_not_create_accounts(auth_api, changes):
+    client, database, _ = auth_api
+    response = register(client, **changes)
+    assert response.status_code == 422
+    assert "input" not in response.text
+    with database.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(User)) == 0
+
+
+def test_login_has_generic_errors_and_short_lived_token(auth_api):
+    client, _, settings = auth_api
+    user = register(client).json()
+    wrong = login(client, user["email"], "wrong password")
+    unknown = login(client, "unknown@example.com", "wrong password")
+    assert wrong.status_code == unknown.status_code == 401
+    assert (
+        wrong.json() == unknown.json() == {"detail": "Invalid or expired credentials"}
+    )
+    assert wrong.headers["www-authenticate"] == "Bearer"
+    response = login(client, user["email"].upper())
+    assert response.status_code == 200
+    token = response.json()
+    assert set(token) == {"access_token", "token_type", "expires_in"}
+    assert token["expires_in"] == settings.access_token_minutes * 60
+    assert token["token_type"] == "bearer"
+    assert response.headers["cache-control"] == "no-store"
+    claims = jwt.decode(
+        token["access_token"],
+        settings.jwt_secret.get_secret_value(),
+        algorithms=["HS256"],
+        issuer=settings.jwt_issuer,
+        audience=settings.jwt_audience,
+    )
+    assert claims["sub"] == user["id"] and "role" not in claims
+    assert claims["exp"] - claims["iat"] == settings.access_token_minutes * 60
+
+
+def test_profile_only_updates_current_user_and_forbids_mass_assignment(auth_api):
+    client, _, _ = auth_api
+    one, two = register(client).json(), register(client).json()
+    first, second = headers(client, one["email"]), headers(client, two["email"])
+    assert client.get("/api/v1/users/me", headers=first).json()["id"] == one["id"]
+    response = client.patch(
+        "/api/v1/users/me/profile",
+        headers=first,
+        json={"full_name": "Private New Name", "phone": None},
+    )
+    assert response.status_code == 200
+    assert response.json()["profile"] == {
+        "full_name": "Private New Name",
+        "phone": None,
+    }
+    assert (
+        client.get("/api/v1/users/me", headers=second).json()["profile"]["full_name"]
+        == "Test Customer"
+    )
+    for data in [
+        {"role": "admin"},
+        {"user_id": two["id"]},
+        {"email": two["email"]},
+        {"full_name": None},
+        {},
+    ]:
+        assert (
+            client.patch(
+                "/api/v1/users/me/profile", headers=first, json=data
+            ).status_code
+            == 422
+        )
+    assert client.get("/api/v1/users/" + two["id"], headers=first).status_code == 404
+
+
+@pytest.mark.parametrize(
+    "role,admin,kitchen",
+    [("customer", 403, 403), ("kitchen_staff", 403, 200), ("admin", 200, 200)],
+)
+def test_role_guards_with_real_password_login(auth_api, role, admin, kitchen):
+    client, database, _ = auth_api
+    email = f"role-{uuid4().hex}@example.com"
+    with database.sessions() as session:
+        auth_service.create_account(
+            session,
+            RegisterRequest(email=email, password=PASSWORD, full_name="Role Test"),
+            role=role,
+        )
+    authorization = headers(client, email)
+    assert (
+        client.get("/api/v1/admin/access-check", headers=authorization).status_code
+        == admin
+    )
+    assert (
+        client.get("/api/v1/kitchen/access-check", headers=authorization).status_code
+        == kitchen
+    )
+
+
+def test_current_database_role_overrides_stale_or_extra_token_role_claims(auth_api):
+    client, database, settings = auth_api
+    user = register(client).json()
+    authorization = headers(client, user["email"])
+    assert (
+        client.get("/api/v1/admin/access-check", headers=authorization).status_code
+        == 403
+    )
+    with database.engine.begin() as connection:
+        connection.execute(
+            update(User).where(User.email == user["email"]).values(role="admin")
+        )
+    assert (
+        client.get("/api/v1/admin/access-check", headers=authorization).status_code
+        == 200
+    )
+    with database.engine.begin() as connection:
+        connection.execute(
+            update(User).where(User.email == user["email"]).values(role="customer")
+        )
+    assert (
+        client.get("/api/v1/admin/access-check", headers=authorization).status_code
+        == 403
+    )
+    key = settings.jwt_secret.get_secret_value()
+    claims = jwt.decode(
+        authorization["Authorization"].split()[1],
+        key,
+        algorithms=["HS256"],
+        audience=settings.jwt_audience,
+        issuer=settings.jwt_issuer,
+    )
+    claims["role"] = "admin"
+    forged_role = {
+        "Authorization": "Bearer " + jwt.encode(claims, key, algorithm="HS256")
+    }
+    assert (
+        client.get("/api/v1/admin/access-check", headers=forged_role).status_code == 403
+    )
+
+
+@pytest.mark.parametrize(
+    "change", [{"is_active": False}, {"deactivated_at": datetime.now(timezone.utc)}]
+)
+def test_deactivated_user_cannot_login_or_reuse_existing_token(auth_api, change):
+    client, database, _ = auth_api
+    user = register(client).json()
+    authorization = headers(client, user["email"])
+    with database.engine.begin() as connection:
+        connection.execute(
+            update(User).where(User.email == user["email"]).values(**change)
+        )
+    assert client.get("/api/v1/users/me", headers=authorization).status_code == 401
+    assert login(client, user["email"]).status_code == 401
+
+
+def test_signed_token_for_nonexistent_user_is_rejected(auth_api):
+    client, _, settings = auth_api
+    authorization = {
+        "Authorization": "Bearer " + create_access_token(uuid4(), settings)
+    }
+    assert client.get("/api/v1/users/me", headers=authorization).status_code == 401
+
+
+def test_registration_failure_rolls_back_and_sanitizes_database_error(
+    auth_api, monkeypatch
+):
+    client, database, _ = auth_api
+    original = auth_service.users.insert_account
+
+    def fail_after_insert(*args, **kwargs):
+        original(*args, **kwargs)
+        raise SQLAlchemyError("sensitive SQL or password must never be returned")
+
+    monkeypatch.setattr(auth_service.users, "insert_account", fail_after_insert)
+    response = register(client)
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Database unavailable"}
+    with database.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(User)) == 0
+        assert session.scalar(select(func.count()).select_from(CustomerProfile)) == 0
+
+
+def test_simultaneous_registration_has_one_account_and_profile(auth_api):
+    client, database, _ = auth_api
+    email = f"race-{uuid4().hex}@example.com"
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(lambda _: register(client, email), range(2)))
+    assert sorted(response.status_code for response in responses) == [201, 409]
+    with database.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(User)) == 1
+        assert session.scalar(select(func.count()).select_from(CustomerProfile)) == 1
+
+
+def test_profile_audit_contains_field_names_not_private_values(auth_api):
+    client, database, _ = auth_api
+    user = register(client).json()
+    response = client.patch(
+        "/api/v1/users/me/profile",
+        headers=headers(client, user["email"]),
+        json={"full_name": "Private Name Not For Audit"},
+    )
+    assert response.status_code == 200
+    with database.sessions() as session:
+        audit = session.scalar(
+            select(AuditLog).where(AuditLog.action == "profile_updated")
+        )
+        assert audit.details == {"fields": ["full_name"]}
+        assert PASSWORD not in str(audit.details)
+        assert "Private Name Not For Audit" not in str(audit.details)
+
+
+def test_older_argon2_parameters_are_upgraded_on_successful_login(auth_api):
+    from argon2 import PasswordHasher
+
+    client, database, _ = auth_api
+    user = register(client).json()
+    weaker = PasswordHasher(time_cost=1, memory_cost=8192, parallelism=1).hash(PASSWORD)
+    with database.engine.begin() as connection:
+        connection.execute(
+            update(User).where(User.email == user["email"]).values(password_hash=weaker)
+        )
+    assert login(client, user["email"]).status_code == 200
+    with database.sessions() as session:
+        changed = session.scalar(select(User).where(User.email == user["email"]))
+        assert changed.password_hash != weaker
+        assert verify_password(PASSWORD, changed.password_hash)[0]
+
+
+def test_staff_command_prompts_without_echoing_and_never_promotes_existing_account(
+    auth_api, monkeypatch
+):
+    from app.cli import create_staff
+
+    client, database, settings = auth_api
+    trusted = settings.model_copy(
+        update={
+            "migration_database_url": SecretStr(
+                database.engine.url.render_as_string(hide_password=False)
+            )
+        }
+    )
+    email = f"cli-{uuid4().hex}@example.com"
+    monkeypatch.setattr(create_staff, "get_settings", lambda: trusted)
+    monkeypatch.setattr(create_staff, "getpass", lambda prompt: PASSWORD)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "create_staff",
+            "--email",
+            email,
+            "--full-name",
+            "Local Staff",
+            "--role",
+            "admin",
+        ],
+    )
+    from contextlib import redirect_stdout
+    from io import StringIO
+    captured = StringIO()
+    with redirect_stdout(captured):
+        create_staff.main()
+    output = captured.getvalue()
+    assert "Created admin account" in output
+    assert PASSWORD not in output
+    assert (
+        client.get(
+            "/api/v1/admin/access-check", headers=headers(client, email)
+        ).status_code
+        == 200
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "create_staff",
+            "--email",
+            email,
+            "--full-name",
+            "Local Staff",
+            "--role",
+            "kitchen_staff",
+        ],
+    )
+    with pytest.raises(SystemExit, match="Account already exists"):
+        create_staff.main()
+    with database.sessions() as session:
+        assert session.scalar(select(User.role).where(User.email == email)) == "admin"
 ```
 
 ### app/tests/test_config.py
@@ -1803,70 +3051,6 @@ from app.db.database import Database, DbSession
 from app.main import create_app
 
 pytestmark = pytest.mark.database
-
-
-@pytest.fixture(scope="module")
-def databases(request):
-    if not request.config.getoption("--run-db"):
-        pytest.skip("Use --run-db with a dedicated TEST_DATABASE_URL")
-    settings = get_settings()
-    if not settings.test_database_url or not settings.database_url:
-        pytest.fail("Configure TEST_DATABASE_URL and DATABASE_URL first")
-    test_url = make_url(settings.test_database_url.get_secret_value())
-    app_url = make_url(settings.database_url.get_secret_value())
-    if test_url.database != "dailydabba_test" or test_url.database == app_url.database:
-        pytest.fail(
-            "Refusing to reset anything except the separate dailydabba_test database"
-        )
-    if (test_url.host, test_url.port) != (app_url.host, app_url.port):
-        pytest.fail("Test and runtime credentials must refer to the same local server")
-    engine = Database.from_url(settings.test_database_url)
-    runtime_url = app_url.set(database=test_url.database)
-    runtime = Database.from_url(
-        SecretStr(runtime_url.render_as_string(hide_password=False))
-    )
-    config = Config(str(BACKEND_ROOT / "alembic.ini"))
-
-    def migrate(action, target=None):
-        with patch.dict(
-            os.environ,
-            {"MIGRATION_DATABASE_URL": settings.test_database_url.get_secret_value()},
-        ):
-            get_settings.cache_clear()
-            try:
-                if action == "check":
-                    command.check(config)
-                elif action == "upgrade":
-                    command.upgrade(config, target)
-                else:
-                    command.downgrade(config, target)
-            finally:
-                get_settings.cache_clear()
-
-    # Validate the actual target too, not only the URL's database component.
-    with engine.engine.connect() as connection:
-        actual_database = connection.execute(text("SELECT current_database()")).scalar_one()
-    if actual_database != "dailydabba_test":
-        engine.dispose()
-        runtime.dispose()
-        pytest.fail("Connected database is not dailydabba_test; refusing destructive reset")
-    existing = set(inspect(engine.engine).get_table_names(schema="public"))
-    if existing - set(Base.metadata.tables) - {"alembic_version"}:
-        engine.dispose()
-        runtime.dispose()
-        pytest.fail("Unknown tables in test database; refusing destructive reset")
-    # Explicitly opted-in scratch DB only. Exercise both migration directions.
-    migrate("downgrade", "base")
-    migrate("upgrade", "head")
-    migrate("downgrade", "base")
-    assert set(inspect(engine.engine).get_table_names()) <= {"alembic_version"}
-    migrate("upgrade", "head")
-    try:
-        yield engine, runtime, migrate
-    finally:
-        runtime.dispose()
-        migrate("downgrade", "base")
-        engine.dispose()
 
 
 @pytest.fixture
@@ -2392,6 +3576,199 @@ def test_renewal_owner_and_purchase_grant_guards_compile() -> None:
     ddl = str(CreateIndex(index).compile(dialect=dialect()))
     assert "UNIQUE INDEX" in ddl
     assert "WHERE kind = 'grant'" in ddl
+```
+
+### app/tests/test_security.py
+
+```python
+"""Password, JWT, configuration and bounded rate-limiter behavior without a DB."""
+
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
+import jwt
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import SecretStr, ValidationError
+
+from app.core.config import Settings
+from app.core.rate_limit import AuthRateLimiter
+from app.core.security import (
+    AuthNotConfigured,
+    InvalidCredentials,
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+)
+from app.db.database import get_session
+from app.main import create_app
+
+
+@pytest.fixture
+def settings():
+    return Settings(
+        _env_file=None,
+        jwt_secret=SecretStr("unit-test-signing-key-with-at-least-32-bytes"),
+    )
+
+
+def claims(settings):
+    now = datetime.now(timezone.utc)
+    return {
+        "sub": str(uuid4()),
+        "jti": str(uuid4()),
+        "iat": now,
+        "nbf": now,
+        "exp": now + timedelta(minutes=15),
+        "iss": settings.jwt_issuer,
+        "aud": settings.jwt_audience,
+        "token_type": "access",
+    }
+
+
+def test_argon2_is_salted_and_verification_fails_closed():
+    password = "test-only long password"
+    one, two = hash_password(password), hash_password(password)
+    assert one.startswith("$argon2id$") and one != two
+    assert password not in one
+    assert verify_password(password, one)[0]
+    assert not verify_password("wrong password", one)[0]
+    assert not verify_password(password, None)[0]
+    assert not verify_password(password, "invalid hash")[0]
+    assert not verify_password(password, "$argon2id$invalid")[0]
+
+
+def test_signed_access_token_roundtrip(settings):
+    subject = uuid4()
+    token = create_access_token(subject, settings)
+    assert decode_access_token(token, settings) == subject
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "expired",
+        "missing_exp",
+        "missing_iat",
+        "missing_nbf",
+        "missing_jti",
+        "missing_sub",
+        "wrong_issuer",
+        "wrong_audience",
+        "wrong_key",
+        "wrong_algorithm",
+        "wrong_type",
+        "invalid_sub",
+        "invalid_jti",
+        "future_nbf",
+        "future_iat",
+        "unsigned",
+    ],
+)
+def test_jwt_invalid_claims_or_signatures_are_rejected(settings, fault):
+    payload = claims(settings)
+    key = settings.jwt_secret.get_secret_value()
+    algorithm = "HS256"
+    if fault == "expired":
+        payload["exp"] = datetime.now(timezone.utc) - timedelta(seconds=10)
+    elif fault.startswith("missing_"):
+        del payload[fault.removeprefix("missing_")]
+    elif fault == "wrong_issuer":
+        payload["iss"] = "another-api"
+    elif fault == "wrong_audience":
+        payload["aud"] = "another-client"
+    elif fault == "wrong_key":
+        key = "another-signing-key-with-at-least-32-bytes"
+    elif fault == "wrong_algorithm":
+        algorithm = "HS384"
+        key = key * 2
+    elif fault == "wrong_type":
+        payload["token_type"] = "refresh"
+    elif fault == "invalid_sub":
+        payload["sub"] = "not-a-uuid"
+    elif fault == "invalid_jti":
+        payload["jti"] = "not-a-uuid"
+    elif fault == "future_nbf":
+        payload["nbf"] = datetime.now(timezone.utc) + timedelta(minutes=5)
+    elif fault == "future_iat":
+        payload["iat"] = datetime.now(timezone.utc) + timedelta(minutes=5)
+    elif fault == "unsigned":
+        algorithm, key = "none", ""
+    token = jwt.encode(payload, key, algorithm=algorithm)
+    with pytest.raises(InvalidCredentials):
+        decode_access_token(token, settings)
+
+
+def test_missing_key_disables_auth_without_guessing_defaults():
+    with pytest.raises(AuthNotConfigured):
+        create_access_token(uuid4(), Settings(_env_file=None))
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None, jwt_secret="too-short-secret")
+    assert "too-short-secret" not in str(error.value)
+
+
+def test_rate_limit_is_atomic_and_expires():
+    clock = [0.0]
+    limiter = AuthRateLimiter(2, clock=lambda: clock[0])
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        outcomes = list(
+            pool.map(lambda _: limiter.retry_after("same-client"), range(20))
+        )
+    assert outcomes.count(None) == 2
+    assert limiter.retry_after("another-client") is None
+    clock[0] = 60.1
+    assert limiter.retry_after("same-client") is None
+
+
+def test_rate_limiter_storage_is_bounded():
+    limiter = AuthRateLimiter(1, clock=lambda: 0)
+    for index in range(4096):
+        assert limiter.retry_after(str(index)) is None
+    assert limiter.retry_after("new-client") == 60
+
+
+def test_validation_does_not_echo_passwords_and_auth_is_throttled(settings):
+    settings.auth_rate_limit_per_minute = 2
+    application = create_app(settings)
+    application.dependency_overrides[get_session] = lambda: object()
+    with TestClient(application) as client:
+        for _ in range(2):
+            response = client.post(
+                "/api/v1/auth/register",
+                json={
+                    "email": "test@example.com",
+                    "password": "p4X!q",
+                    "full_name": "Test",
+                },
+            )
+            assert response.status_code == 422
+            assert "p4X!q" not in response.text
+            assert "input" not in response.text
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "test@example.com",
+                "password": "p4X!q",
+                "full_name": "Test",
+            },
+        )
+        assert response.status_code == 429
+        assert int(response.headers["retry-after"]) > 0
+        assert response.headers["cache-control"] == "no-store"
+
+
+def test_missing_or_invalid_bearer_token_is_401_without_database(settings):
+    with TestClient(create_app(settings)) as client:
+        for headers in [
+            {},
+            {"Authorization": "Bearer invalid"},
+            {"Authorization": "Basic invalid"},
+        ]:
+            response = client.get("/api/v1/users/me", headers=headers)
+            assert response.status_code == 401
+            assert response.headers["www-authenticate"] == "Bearer"
 ```
 
 ### alembic/env.py
@@ -3720,6 +5097,56 @@ def downgrade() -> None:
     # ### end Alembic commands ###
 ```
 
+### scripts/start-api.ps1
+
+```powershell
+[CmdletBinding()]
+param([ValidateRange(1024, 65535)][int]$Port = 8000)
+$ErrorActionPreference = 'Stop'
+$backend = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$python = Join-Path $backend '.venv/Scripts/python.exe'
+$local = Join-Path $backend '.local'
+$recordPath = Join-Path $local 'api.process.json'
+if (-not (Test-Path -LiteralPath $python)) { throw 'Install the backend virtual environment first.' }
+New-Item -ItemType Directory -Force -Path $local | Out-Null
+if (Test-Path -LiteralPath $recordPath) {
+    $record = Get-Content -Raw -LiteralPath $recordPath | ConvertFrom-Json
+    $existing = Get-Process -Id $record.pid -ErrorAction SilentlyContinue
+    if ($existing -and $existing.StartTime.ToUniversalTime().Ticks.ToString() -eq $record.startedTicks) {
+        Write-Output "Managed API already running at http://127.0.0.1:$($record.port)/docs"
+        exit 0
+    }
+}
+$listener = [Net.Sockets.TcpClient]::new()
+try {
+    try { $listener.Connect('127.0.0.1', $Port) } catch { }
+    if ($listener.Connected) { throw "Port $Port is already in use. No existing process was stopped. Choose another -Port." }
+} finally { $listener.Dispose() }
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+$stdout = Join-Path $local "api-$stamp.stdout.log"
+$stderr = Join-Path $local "api-$stamp.stderr.log"
+$process = Start-Process -FilePath $python -ArgumentList @(
+    '-m', 'uvicorn', 'app.main:app', '--app-dir', ('"' + $backend + '"'),
+    '--host', '127.0.0.1', '--port', $Port.ToString(), '--no-proxy-headers'
+) -WorkingDirectory $backend -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+@{ pid = $process.Id; port = $Port; startedTicks = $process.StartTime.ToUniversalTime().Ticks.ToString(); stdout = $stdout; stderr = $stderr } |
+    ConvertTo-Json | Set-Content -LiteralPath $recordPath -Encoding utf8
+$watch = [Diagnostics.Stopwatch]::StartNew()
+while ($watch.Elapsed.TotalSeconds -lt 30) {
+    $process.Refresh()
+    if ($process.HasExited) { throw "API exited. Check $stderr" }
+    try {
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/v1/health" -TimeoutSec 1
+        if ($health.status -eq 'ok') {
+            Write-Output "API started at http://127.0.0.1:$Port/docs"
+            exit 0
+        }
+    } catch { }
+    Start-Sleep -Milliseconds 250
+}
+throw "API startup timed out. Check $stderr"
+```
+
 ### scripts/start-postgres.ps1
 
 ```powershell
@@ -3732,8 +5159,30 @@ if (-not (Test-Path (Join-Path $pgBin 'pg_ctl.exe'))) {
 }
 & (Join-Path $pgBin 'pg_ctl.exe') -D $pgData status
 if ($LASTEXITCODE -eq 0) { exit 0 }
-& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData -l (Join-Path $pgData 'server.log') -w start
+& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData -l (Join-Path $env:LOCALAPPDATA 'DailyDabba/postgresql.log') -t 120 -w start
 exit $LASTEXITCODE
+```
+
+### scripts/stop-api.ps1
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$backend = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$recordPath = Join-Path $backend '.local/api.process.json'
+if (-not (Test-Path -LiteralPath $recordPath)) { Write-Output 'No managed API record.'; exit 0 }
+$record = Get-Content -Raw -LiteralPath $recordPath | ConvertFrom-Json
+$process = Get-Process -Id $record.pid -ErrorAction SilentlyContinue
+if (-not $process) { Write-Output 'Managed API is already stopped.'; exit 0 }
+if ($process.StartTime.ToUniversalTime().Ticks.ToString() -ne $record.startedTicks) {
+    throw 'The recorded process ID was reused; refusing to stop anything.'
+}
+$details = Get-CimInstance Win32_Process -Filter "ProcessId=$($record.pid)"
+if (-not $details.CommandLine.Contains($backend) -or -not $details.CommandLine.Contains('uvicorn')) {
+    throw 'Process identity does not match this backend; refusing to stop anything.'
+}
+& taskkill.exe /PID $record.pid /T /F | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Could not stop the managed API.' }
+Write-Output 'Stopped this backend API. PostgreSQL remains running.'
 ```
 
 ### scripts/stop-postgres.ps1
@@ -3746,7 +5195,7 @@ $pgData = Join-Path $env:LOCALAPPDATA 'DailyDabba/pgdata17'
 exit $LASTEXITCODE
 ```
 
-## Monorepo database infrastructure files
+## Monorepo infrastructure source
 
 These paths are relative to the parent dailydabba directory.
 
@@ -3827,4 +5276,16 @@ ALTER SCHEMA public OWNER TO dailydabba_migrator;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO dailydabba_app;
 SQL
+```
+
+## Repository-root ignore file
+
+Path: C:/Users/rmshr/OneDrive/Desktop/food_startup/.gitignore
+
+```text
+# Repository-wide dependency and secret exclusions
+node_modules/
+.env
+.env.*
+!.env.example
 ```
