@@ -1,3 +1,7 @@
+## Frontend prototype
+
+The web and Android apps now include local demo screens. See [frontend setup](docs/frontend-setup.md) for current run commands and demo limitations. Older blank-starter instructions below are historical.
+
 # DailyDabba
 
 **Backend direction updated:** the active Python/FastAPI backend is in
